@@ -9,6 +9,7 @@ import re
 import time
 import shutil
 
+
 class PartLibrary:
     def __init__(self, filepath=None):
         if filepath is None:
@@ -55,7 +56,7 @@ class PartLibrary:
         Return a dict with list of available categories in form category ->
         [subcategory]
         """
-        return { category: subcategories.keys() for category, subcategories in self.lib.items()}
+        return {category: subcategories.keys() for category, subcategories in self.lib.items()}
 
     def delete(self, lcscNumber):
         cat, subcat = self.index[lcscNumber]
@@ -74,10 +75,12 @@ class PartLibrary:
         with open(filename, "w") as f:
             json.dump(self.lib, f)
 
+
 def loadPartLibrary(file):
     lib = json.load(file)
     checkLibraryStructure(lib)
     return lib
+
 
 def parsePrice(priceString):
     prices = []
@@ -94,15 +97,18 @@ def parsePrice(priceString):
     prices.sort(key=lambda x: x["qFrom"])
     return prices
 
+
 def obtainCsrfTokenAndCookies():
     searchPage = requests.get("https://lcsc.com/products/Pre-ordered-Products_11171.html")
     return extractCsrfToken(searchPage.text), searchPage.cookies
+
 
 def extractCsrfToken(pageText):
     m = re.search(r"'X-CSRF-TOKEN':\s*'(.*)'", pageText)
     if not m:
         return None
     return m.group(1)
+
 
 def getLcscExtra(lcscNumber, token=None, cookies=None, onPause=None):
     if token is None or cookies is None:
@@ -163,18 +169,18 @@ def getLcscExtra(lcscNumber, token=None, cookies=None, onPause=None):
 
 
 def loadJlcTable(file):
-    reader = csv.DictReader(file, delimiter=',', quotechar='"')
-    return { x["LCSC Part"]: {
-                "lcsc": x["LCSC Part"],
-                "category": x["First Category"],
-                "subcategory": x["Second Category"],
-                "mfr": x["MFR.Part"],
-                "package": x["Package"],
-                "joints": int(x["Solder Joint"]),
-                "manufacturer": x["Manufacturer"],
-                "basic": x["Library Type"] == "Basic",
-                "description": x["Description"],
-                "datasheet": x["Datasheet"],
-                "stock": int(x["Stock"]),
-                "price": parsePrice(x["Price"])
-            }   for x in reader }
+    reader = csv.DictReader(file, delimiter=';', quotechar='"')
+    return {x["LCSC Part"]: {
+        "lcsc": x["LCSC Part"],
+        "category": x["First Category"],
+        "subcategory": x["Second Category"],
+        "mfr": x["MFR.Part"],
+        "package": x["Package"],
+        "joints": int(x["Solder Joint"]),
+        "manufacturer": x["Manufacturer"],
+        "basic": x["Library Type"] == "Basic",
+        "description": x["Description"],
+        "datasheet": x["Datasheet"],
+        "stock": int(x["Stock"]),
+        "price": parsePrice(x["Price"])
+    } for x in reader}
