@@ -1,13 +1,15 @@
+import shutil
 import click
 import re
 import os
 import json
 import datetime
 import sys
-from jlcparts.partLib import PartLibrary
-from jlcparts.common import sha256file
-from jlcparts import attributes, descriptionAttributes
+from partLib import PartLibrary
+from common import sha256file
+import attributes, descriptionAttributes
 from pathlib import Path
+
 
 def saveJson(object, filename, hash=False, pretty=False):
     with open(filename, "w") as f:
@@ -21,19 +23,22 @@ def saveJson(object, filename, hash=False, pretty=False):
             f.write(hash)
         return hash
 
+
 def weakUpdateParameters(attrs, newParameters):
     for attr, value in newParameters.items():
         if attr in attrs and attrs[attr] not in ["", "-"]:
             continue
         attrs[attr] = value
 
+
 def extractAttributesFromDescription(description):
     if description.startswith("Chip Resistor - Surface Mount"):
         return descriptionAttributes.chipResistor(description)
     if (description.startswith("Multilayer Ceramic Capacitors MLCC") or
-       description.startswith("Aluminum Electrolytic Capacitors")):
+            description.startswith("Aluminum Electrolytic Capacitors")):
         return descriptionAttributes.capacitor(description)
     return {}
+
 
 def normalizeUnicode(value):
     """
@@ -41,6 +46,7 @@ def normalizeUnicode(value):
     """
     value = value.replace("（", " (").replace("）", ")")
     return value
+
 
 def normalizeAttribute(key, value):
     """
@@ -61,14 +67,14 @@ def normalizeAttribute(key, value):
     elif key in ["Balance Port Impedence", "Unbalance Port Impedence"]:
         value = attributes.impedanceAttribute(value)
     elif key in ["Voltage - Rated", "Voltage Rating - DC", "Allowable Voltage",
-            "Clamping Voltage", "Varistor Voltage(Max)", "Varistor Voltage(Typ)",
-            "Varistor Voltage(Min)", "Voltage - DC Reverse (Vr) (Max)",
-            "Voltage - DC Spark Over (Nom)", "Voltage - Peak Reverse (Max)",
-            "Voltage - Reverse Standoff (Typ)", "Voltage - Gate Trigger (Vgt) (Max)",
-            "Voltage - Off State (Max)", "Voltage - Input (Max)", "Voltage - Output (Max)",
-            "Voltage - Output (Fixed)", "Voltage - Output (Min/Fixed)",
-            "Supply Voltage (Max)", "Supply Voltage (Min)", "Output Voltage",
-            "Voltage - Input (Min)"]:
+                 "Clamping Voltage", "Varistor Voltage(Max)", "Varistor Voltage(Typ)",
+                 "Varistor Voltage(Min)", "Voltage - DC Reverse (Vr) (Max)",
+                 "Voltage - DC Spark Over (Nom)", "Voltage - Peak Reverse (Max)",
+                 "Voltage - Reverse Standoff (Typ)", "Voltage - Gate Trigger (Vgt) (Max)",
+                 "Voltage - Off State (Max)", "Voltage - Input (Max)", "Voltage - Output (Max)",
+                 "Voltage - Output (Fixed)", "Voltage - Output (Min/Fixed)",
+                 "Supply Voltage (Max)", "Supply Voltage (Min)", "Output Voltage",
+                 "Voltage - Input (Min)"]:
         value = attributes.voltageAttribute(value)
     elif key in ["Rated current", "surge current", "Current - Average Rectified (Io)",
                  "Current - Breakover", "Current - Peak Output", "Current - Peak Pulse (10/1000μs)",
@@ -107,7 +113,7 @@ def normalizeAttribute(key, value):
     elif key == "Voltage - Forward (Vf) (Max) @ If":
         value = attributes.forwardVoltage(value)
     elif key in ["Voltage - Breakdown (Min)", "Voltage - Zener (Nom) (Vz)",
-        "Vf - Forward Voltage"]:
+                 "Vf - Forward Voltage"]:
         value = attributes.voltageRange(value)
     elif key == "Voltage - Clamping (Max) @ Ipp":
         value = attributes.clampingVoltage(value)
@@ -117,8 +123,9 @@ def normalizeAttribute(key, value):
         value = attributes.vceOnMax(value)
     else:
         value = attributes.stringAttribute(value)
-    assert(isinstance(value, dict))
+    assert (isinstance(value, dict))
     return key, value
+
 
 def normalizeAttributeKey(key):
     """
@@ -149,21 +156,17 @@ def normalizeAttributeKey(key):
         key = "Vgs(th) (Max) @ Id"
     return key
 
+
 def pullExtraAttributes(component):
     """
     Turn common properties (e.g., base/extended) into attributes. Return them as
     a dictionary
     """
-    status = component["extra"].get("status", "-")
-    if status == "up":
-        status = "Active"
-    if status == "down":
-        status = "Discontinued"
     return {
         "Basic/Extended": "Basic" if component["basic"] else "Extended",
         "Package": component["package"],
-        "Status": status
     }
+
 
 def extractComponent(component, schema):
     propertyList = []
@@ -195,6 +198,7 @@ def extractComponent(component, schema):
             propertyList.append(None)
     return propertyList
 
+
 def buildDatatable(components):
     schema = ["lcsc", "mfr", "joints", "manufacturer", "description",
               "datasheet", "price", "images", "url", "attributes"]
@@ -203,8 +207,10 @@ def buildDatatable(components):
         "components": [extractComponent(x, schema) for x in components.values()]
     }
 
+
 def buildStocktable(components):
-    return {component["lcsc"]: component["stock"] for component in components.values() }
+    return {component["lcsc"]: component["stock"] for component in components.values()}
+
 
 def clearDir(directory):
     """
@@ -217,9 +223,7 @@ def clearDir(directory):
         elif os.path.isdir(file_path):
             shutil.rmtree(file_path)
 
-@click.command()
-@click.argument("library", type=click.Path(dir_okay=False))
-@click.argument("outdir", type=click.Path(file_okay=False))
+
 def buildtables(library, outdir):
     """
     Build datatables out of the LIBRARY and save them in OUTDIR
@@ -241,7 +245,7 @@ def buildtables(library, outdir):
             stockTable = buildStocktable(lib.lib[catName][subcatName])
             stockHash = saveJson(stockTable, os.path.join(outdir, f"{filebase}.stock.json"), hash=True)
 
-            assert(subcatName not in subcatIndex)
+            assert (subcatName not in subcatIndex)
             subcatIndex[subcatName] = {
                 "sourcename": filebase,
                 "datahash": dataHash,
@@ -253,8 +257,3 @@ def buildtables(library, outdir):
         "created": datetime.datetime.now().astimezone().replace(microsecond=0).isoformat()
     }
     saveJson(index, os.path.join(outdir, "index.json"), hash=True)
-
-
-
-
-
